@@ -1,0 +1,149 @@
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy.optimize import minimize
+from tqdm import tqdm
+
+class Simulator:
+  def __init__(self, N, M, lamb, seed=None):
+    """
+    N: Number of individuals
+    M: Number of dimensions
+    lambda: Lambda parameter (social pressure)
+    """
+
+    if seed:
+      np.random.seed(seed)
+
+    self.N = N
+    self.M = M
+    self.lamb = lamb
+
+    # call rank() function to generate ranks for everyone
+    self.R = self.rank()
+
+    # initialize attention vectors w_i and scales them
+    rand_w = np.random.rand(N, M)
+    self.W = rand_w / np.linalg.norm(rand_w, axis=1, keepdims=True)
+
+    # initialize W_bar based on the initial random starting positions
+    self.update_norm()
+
+  def rank(self):
+    """
+    Generating individual ranks between -1 and 1, shuffled for each dimension
+    """
+    # even distribution of rank from -1 (worst) to 1 (best)
+    ranks = np.zeros((self.N, self.M))
+    dist = np.linspace(-1.0, 1.0, self.N)
+
+    # shuffle ranks for each dimension
+    for k in range(self.M):
+      col_ranks = dist.copy()
+      np.random.shuffle(col_ranks)
+      ranks[:, k] = col_ranks
+
+    return ranks
+
+  def update_norm(self):
+    """
+    Calculate norm (W_bar)
+    """
+    # calculte average attention vector of the population
+    avg = np.mean(self.W, axis = 0)
+    norm_val = np.linalg.norm(avg)
+
+    if norm_val == 0:
+      self.W_bar = np.full(self.M, 1.0/self.M)
+    else:
+      # normalize average
+      self.W_bar = avg / norm_val
+
+  def utility(self, w, r_i, w_bar):
+    """
+    Equation 5: Calculating utility
+    """
+    # utility based on rank
+    u_rank = (1.0/np.sqrt(self.M) * np.dot(w, r_i))
+
+    # cognitive stress
+    difference = w - w_bar
+    u_stress = self.lamb * np.sum(difference **2)
+
+    return u_rank - u_stress
+
+  def optimize(self, i):
+    """
+    Equation 6: Individual optimization
+    """
+    # get rank and current position of person i
+    r_i = self.R[i]
+    w0 = self.W[i]
+
+    # minmize negative utility (as a way to maximize utility)
+    func = lambda w: -self.utility(w, r_i, self.W_bar)
+
+    # define constraints and bounds
+    cons = ({'type':'eq', 'fun': lambda w: np.sum(w**2) - 1.0})
+    bounds = [(0.0, None) for _ in range(self.M)]
+
+    res = minimize(func, w0, method='SLSQP', bounds = bounds, constraints = cons, tol=1e-5)
+
+    # find best vector and the utility value
+    return res.x, -res.fun
+
+  def run_simulation(self, max = 20, tolerance = 1e-4):
+    """
+    Iteratively updates individual vectors and norm until Nash Equilibrium
+    """
+    # max is arbitrary number (20) to reach equilibrium
+    for iteration in range(max):
+      original_W_bar = self.W_bar.copy()
+
+      # individual looks at current norm then updates their attention vector
+      total_u = 0
+      for i in range(self.N):
+        w_star, u_star = self.optimize(i)
+        self.W[i] = w_star
+        total_u += u_star
+
+      # society updates avergae accordingly
+      self.update_norm()
+
+      # convergence check to see if norm changed
+      diff = np.linalg.norm(self.W_bar - original_W_bar)
+      if diff < tolerance:
+        return total_u
+
+    final_u = 0
+    for i in range(self.N):
+      final_u += self.utility(self.W[i], self.R[i], self.W_bar)
+
+    return final_u
+
+def run_experiment():
+  N_pop = 100
+  lambda_val = 0.3
+  dims_range = range(1, 10)
+
+  welfare_results = []
+
+  # loops through each dimension
+  for m in tqdm(dims_range):
+    sim = Simulator(N=N_pop, M=m, lamb=lambda_val)
+
+    w_social = sim.run_simulation()
+    u_average = w_social / N_pop
+    welfare_results.append(u_average)
+
+  # plot results
+  plt.figure(figsize=(10, 6))
+  plt.plot(dims_range, welfare_results, marker='o', linestyle='-', color='b', linewidth=2)
+  plt.title(f'Average Utility vs. Number of Dimensions (Lambda={lambda_val})')
+  plt.xlabel('Number of Dimensions (M)')
+  plt.ylabel('Average Individual Utility')
+  plt.grid(True)
+
+  plt.show()
+
+if __name__ == "__main__":
+    run_experiment()
