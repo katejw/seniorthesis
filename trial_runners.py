@@ -6,7 +6,7 @@ Generative AI tools were consulted in the development of this code.
 """
 
 import numpy as np
-from simulators import Simulator, L1_Simulator, LocalSimulator
+from simulators import Simulator, LocalSimulator
 
 N_TRIALS = 50
 Z95      = 1.96
@@ -18,14 +18,7 @@ def run_trials(N, M, lamb, n_trials=N_TRIALS):
     results = np.array([Simulator(N, M, lamb, s).run_simulation() / N
                         for s in range(n_trials)])
     return results.mean(), Z95 * results.std(ddof=1) / np.sqrt(n_trials)
-
-
-def run_trials_l1(N, M, lamb, n_trials=N_TRIALS):
-    """Same as run_trials but for the L1 constraint robustness check."""
-    results = np.array([L1_Simulator(N, M, lamb, s).run_simulation() / N
-                        for s in range(n_trials)])
-    return results.mean(), Z95 * results.std(ddof=1) / np.sqrt(n_trials)
-
+    
 
 def run_trials_local(N, M, lamb, d, n_trials=N_TRIALS):
     """Same as run_trials but for the local-norm simulator; adds neighbor count d."""
