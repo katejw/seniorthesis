@@ -9,7 +9,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 from trial_runners import (
-    run_trials, run_trials_l1, run_trials_local,
+    run_trials, run_trials_local,
     run_trials_decomposed, run_trials_local_decomposed,
 )
 
